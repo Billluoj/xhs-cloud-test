@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
+<title>小红书商品销量监控</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{--primary:#ff2442;--primary-light:#fff0f3;--bg:#f0f2f5;--card:#fff;--text:#1a1a1a;--sub:#666;--muted:#999;--border:#e8e8e8;--success:#52c41a;--blue:#1890ff}
+body{font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+.header{background:linear-gradient(135deg,#ff2442,#ff6b81);color:#fff;padding:12px 0;box-shadow:0 2px 8px rgba(255,36,66,.25);position:sticky;top:0;z-index:100}
+.header-inner{max-width:1200px;margin:0 auto;padding:0 16px;display:flex;align-items:center;justify-content:space-between}
+.header h1{font-size:17px;font-weight:700;white-space:nowrap}
+.dot{width:6px;height:6px;background:#4dff4d;border-radius:50%;animation:pulse 2s infinite;margin:0 6px}
+.status{font-size:12px;opacity:.85}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.hdr-btn{font-size:13px;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);color:#fff;padding:5px 12px;border-radius:6px;cursor:pointer;font-weight:500}
+.add-bar{background:var(--card);padding:10px 16px;border-bottom:1px solid var(--border)}
+.add-bar-inner{max-width:1200px;margin:0 auto;display:flex;gap:10px;align-items:flex-end}
+.add-bar-wrap{flex:1;background:#f8f8f8;border:1.5px solid var(--border);border-radius:10px;padding:8px 12px;transition:border .2s}
+.add-bar-wrap:focus-within{border-color:var(--primary);background:#fff}
+.add-bar-label{font-size:11px;color:var(--muted);margin-bottom:3px}
+.add-bar textarea{width:100%;border:none;background:transparent;font-size:14px;outline:none;resize:none;font-family:inherit;line-height:1.5;min-height:36px;color:var(--text)}
+.add-bar textarea::placeholder{color:#bbb}
+.btn-add{background:var(--primary);color:#fff;border:none;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0}
+.btn-add:hover{background:#e61e3a}
+.btn-add:disabled{opacity:.5;cursor:not-allowed}
+.main{max-width:1200px;margin:0 auto;padding:16px}
+.stats-bar{display:flex;gap:12px;margin-bottom:16px;flex-wrap:wrap}
+.stat-card{background:var(--card);border-radius:8px;padding:12px 16px;flex:1;min-width:100px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.stat-card .label{font-size:12px;color:var(--muted)}
+.stat-card .value{font-size:22px;font-weight:700;margin-top:2px}
+.stat-card .value.red{color:var(--primary)} .stat-card .value.blue{color:var(--blue)}
+.sort-bar{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.sort-label{font-size:12px;color:var(--muted)}
+.sort-btn{padding:4px 12px;border-radius:14px;border:1px solid var(--border);background:#fff;font-size:12px;cursor:pointer;color:var(--sub)}
+.sort-btn.active{background:var(--primary);color:#fff;border-color:var(--primary)}
+/* 商品卡片（手机优先） */
+.prod-card{background:var(--card);border-radius:12px;padding:14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.05);cursor:pointer;transition:box-shadow .2s}
+.prod-card:active{box-shadow:0 2px 8px rgba(0,0,0,.1)}
+.prod-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px}
+.prod-thumb{width:68px;height:68px;border-radius:8px;object-fit:cover;flex-shrink:0;border:1px solid #eee;background:#f5f5f5}
+.prod-thumb-ph{width:68px;height:68px;border-radius:8px;background:linear-gradient(135deg,#ffeef0,#fff0f3);display:flex;align-items:center;justify-content:center;font-size:26px;flex-shrink:0}
+.prod-info{flex:1;min-width:0}
+.prod-name{font-weight:600;font-size:14px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;margin-bottom:4px}
+.prod-price{font-weight:700;color:var(--primary);font-size:18px}
+.prod-price-orig{font-size:11px;color:var(--muted);text-decoration:line-through;margin-left:4px}
+.prod-shop{font-size:11px;color:var(--sub);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prod-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:8px 0}
+.metric{text-align:center;background:#fafafa;border-radius:6px;padding:6px 4px}
+.metric .ml{font-size:10px;color:var(--muted)}
+.metric .mv{font-size:14px;font-weight:700;margin-top:1px}
+.metric .mv.red{color:var(--primary)} .metric .mv.muted{color:var(--muted);font-weight:400;font-size:12px}
+.prod-footer{display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid #f0f0f0}
+.prod-footer-left{font-size:11px;color:var(--muted)}
+.prod-footer-right{display:flex;gap:6px}
+.act-btn{padding:5px 12px;border-radius:6px;border:1px solid var(--border);background:#fff;font-size:13px;cursor:pointer}
+.act-btn:hover{border-color:var(--primary);color:var(--primary)}
+.act-btn.danger:hover{border-color:#ff4d4f;color:#ff4d4f}
+.pending-badge{font-size:11px;color:#d48806;background:#fff7e6;padding:1px 6px;border-radius:3px;border:1px solid #ffe58f}
+/* Modal */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;justify-content:center;align-items:flex-start;padding:0;overflow-y:auto}
+.modal-overlay.active{display:flex}
+.modal{background:#fff;width:100%;max-width:860px;margin:auto;animation:modalIn .2s ease}
+@keyframes modalIn{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@media(min-width:600px){.modal{border-radius:12px;margin:32px auto;max-height:90vh;overflow-y:auto}}
+.modal-head{padding:16px 16px 12px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;background:#fff;z-index:2}
+.modal-head h2{font-size:15px;font-weight:700;flex:1;padding-right:12px}
+.modal-close{width:28px;height:28px;border:none;background:#f0f0f0;border-radius:50%;cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.modal-body{padding:16px}
+.detail-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:20px}
+@media(min-width:600px){.detail-metrics{grid-template-columns:repeat(6,1fr)}}
+.metric-card{background:#fafafa;border-radius:8px;padding:10px;text-align:center}
+.metric-card .label{font-size:11px;color:var(--muted);margin-bottom:3px}
+.metric-card .val{font-size:18px;font-weight:700}
+.metric-card .val.red{color:var(--primary)} .metric-card .val.blue{color:var(--blue)}
+.detail-tabs{display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:16px;overflow-x:auto}
+.detail-tab{padding:8px 16px;font-size:13px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;color:var(--sub);white-space:nowrap}
+.detail-tab.active{color:var(--primary);border-bottom-color:var(--primary);font-weight:600}
+.detail-panel{display:none} .detail-panel.active{display:block}
+.chart-box{height:240px;margin:12px 0}
+.info-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.info-item{padding:10px 12px;background:#fafafa;border-radius:6px}
+.info-item .label{font-size:11px;color:var(--muted)}
+.info-item .val{font-size:13px;font-weight:600;margin-top:2px;word-break:break-all}
+.product-link{display:flex;align-items:center;gap:8px;padding:12px;background:var(--primary-light);border-radius:8px;border:1px solid #ffccd5;margin-top:14px;cursor:pointer;color:var(--primary);text-decoration:none;font-size:13px}
+.product-link:hover{background:#ffe0e6}
+/* 配置弹窗 */
+.cfg-overlay{position:fixed;inset:0;background:linear-gradient(135deg,#ff2442,#ff6b81);z-index:3000;display:flex;align-items:center;justify-content:center;padding:16px}
+.cfg-overlay.hidden{display:none}
+.cfg-box{background:#fff;border-radius:16px;padding:28px 24px;width:100%;max-width:440px;box-shadow:0 12px 40px rgba(0,0,0,.2)}
+.cfg-box h2{font-size:20px;font-weight:700;margin-bottom:4px;text-align:center}
+.cfg-box p{font-size:13px;color:var(--muted);margin-bottom:20px;text-align:center}
+.cfg-group{margin-bottom:14px}
+.cfg-group label{font-size:12px;color:var(--sub);font-weight:500;display:block;margin-bottom:5px}
+.cfg-group input{width:100%;padding:10px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;outline:none;transition:border .2s}
+.cfg-group input:focus{border-color:var(--primary)}
+.cfg-hint{font-size:11px;color:var(--muted);margin-top:3px}
+.cfg-save{width:100%;padding:12px;background:var(--primary);color:#fff;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;margin-top:4px}
+.cfg-save:hover{background:#e61e3a}
+/* Toast */
+.toast-container{position:fixed;top:14px;right:14px;z-index:4000;display:flex;flex-direction:column;gap:8px}
+@media(max-width:600px){.toast-container{right:8px;left:8px;top:8px}}
+.toast{padding:10px 16px;border-radius:6px;color:#fff;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,.15);animation:toastIn .3s ease}
+.toast.success{background:var(--success)} .toast.error{background:#ff4d4f} .toast.info{background:var(--blue)}
+@keyframes toastIn{from{opacity:0;transform:translateX(30px)}to{opacity:1;transform:translateX(0)}}
+.empty-state{text-align:center;padding:48px 20px;color:var(--muted)}
+.empty-state .icon{font-size:48px;margin-bottom:12px}
+/* 设置弹窗 */
+.settings-section{margin-bottom:20px}
+.settings-section h3{font-size:13px;font-weight:600;color:var(--sub);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+.settings-row{display:flex;align-items:center;justify-content:space-between;padding:8px 0;font-size:13px;border-bottom:1px solid #f5f5f5}
+.settings-row:last-child{border-bottom:none}
+.settings-row .key{color:var(--sub);flex:0 0 90px}
+.settings-row .val{flex:1;color:var(--text);font-size:12px;word-break:break-all;text-align:right;color:var(--muted)}
+</style>
+</head>
+<body>
+
+<!-- 配置弹窗（首次使用） -->
+<div class="cfg-overlay" id="cfgOverlay">
+  <div class="cfg-box">
+    <div style="font-size:36px;text-align:center;margin-bottom:10px">📊</div>
+    <h2>小红书商品监控</h2>
+    <p>首次使用请配置数据库连接</p>
+    <div class="cfg-group">
+      <label>Supabase 项目 URL</label>
+      <input id="cfgUrl" placeholder="https://xxxx.supabase.co" />
+    </div>
+    <div class="cfg-group">
+      <label>Supabase Anon Key（公开密钥）</label>
+      <input id="cfgKey" placeholder="eyJhbGciOiJIUzI1NiIs..." />
+      <div class="cfg-hint">Dashboard → Settings → API → anon public</div>
+    </div>
+    <div class="cfg-group">
+      <label>GitHub 仓库（用于触发采集）</label>
+      <input id="cfgRepo" placeholder="用户名/xhs-cloud-test" />
+    </div>
+    <div class="cfg-group">
+      <label>GitHub Token（PAT，触发 Actions 用）</label>
+      <input id="cfgToken" placeholder="ghp_xxxx 或 gho_xxxx" type="password" />
+      <div class="cfg-hint">GitHub → Settings → Developer settings → Personal access tokens</div>
+    </div>
+    <button class="cfg-save" onclick="saveConfig()">保存并开始使用</button>
+  </div>
+</div>
+
+<div class="header">
+  <div class="header-inner">
+    <div style="display:flex;align-items:center;gap:8px">
+      <h1>📊 小红书商品销量监控</h1>
+      <span class="dot"></span>
+      <span class="status" id="statusText">云端监控</span>
+    </div>
+    <button class="hdr-btn" onclick="showSettings()">⚙️ 设置</button>
+  </div>
+</div>
+
+<div class="add-bar">
+  <div class="add-bar-inner">
+    <div class="add-bar-wrap">
+      <div class="add-bar-label">📎 粘贴小红书商品链接</div>
+      <textarea id="productUrl" rows="2" placeholder="支持 xhslink.com 短链 · 支持批量粘贴多个链接"></textarea>
+    </div>
+    <button class="btn-add" id="addBtn" onclick="addProduct()">添加监控</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="stats-bar">
+    <div class="stat-card"><div class="label">监控商品</div><div class="value blue" id="statCount">0</div></div>
+    <div class="stat-card"><div class="label">总销量</div><div class="value red" id="statTotalSold">0</div></div>
+    <div class="stat-card"><div class="label">近7天增量</div><div class="value red" id="statDelta7d">—</div></div>
+    <div class="stat-card"><div class="label">昨日增量</div><div class="value red" id="statDelta1d">—</div></div>
+  </div>
+  <div class="sort-bar" id="sortBar" style="display:none">
+    <span class="sort-label">排序：</span>
+    <button class="sort-btn active" data-sort="added_time" onclick="setSort('added_time')">添加时间</button>
+    <button class="sort-btn" data-sort="sold_7d" onclick="setSort('sold_7d')">7天增量</button>
+    <button class="sort-btn" data-sort="sold_yesterday" onclick="setSort('sold_yesterday')">昨日增量</button>
+  </div>
+  <div id="productArea"></div>
+</div>
+
+<!-- 详情弹窗 -->
+<div class="modal-overlay" id="detailModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="modalTitle">商品详情</h2>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="detail-metrics" id="detailMetrics"></div>
+      <div class="detail-tabs">
+        <div class="detail-tab active" onclick="switchTab('trend')">📈 销量趋势</div>
+        <div class="detail-tab" onclick="switchTab('info')">📋 商品信息</div>
+      </div>
+      <div class="detail-panel active" id="panel-trend">
+        <div class="chart-box"><canvas id="soldChart"></canvas></div>
+        <div class="chart-box"><canvas id="priceChart"></canvas></div>
+      </div>
+      <div class="detail-panel" id="panel-info">
+        <div class="info-grid" id="infoGrid"></div>
+        <a class="product-link" id="productLinkEl" href="#" target="_blank">🔗 在小红书中查看商品</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 设置弹窗 -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-head">
+      <h2>⚙️ 设置</h2>
+      <button class="modal-close" onclick="document.getElementById('settingsModal').classList.remove('active')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="settings-section">
+        <h3>当前配置</h3>
+        <div id="cfgDisplay"></div>
+      </div>
+      <div class="settings-section">
+        <h3>采集控制</h3>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button onclick="triggerScrape()" style="flex:1;padding:10px;background:var(--blue);color:#fff;border:none;border-radius:8px;font-size:13px;cursor:pointer;font-weight:500">▶ 立即触发采集</button>
+          <button onclick="loadProducts()" style="flex:1;padding:10px;background:#f0f0f0;border:none;border-radius:8px;font-size:13px;cursor:pointer">🔄 刷新数据</button>
+        </div>
+        <p style="font-size:12px;color:var(--muted);margin-top:10px">采集任务在 GitHub Actions 中运行，通常 1-2 分钟内完成</p>
+      </div>
+      <div class="settings-section">
+        <h3>采集队列状态</h3>
+        <div id="queueStatus" style="font-size:13px;color:var(--muted)">加载中...</div>
+      </div>
+      <div style="margin-top:8px">
+        <button onclick="resetConfig()" style="width:100%;padding:10px;background:#fff;border:1px solid var(--border);border-radius:8px;font-size:13px;cursor:pointer;color:var(--sub)">重新配置连接信息</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastBox"></div>
+
+<script>
+// ─── 配置管理 ────────────────────────────────────────────────────────────────
+let CFG = null;
+
+function loadConfig() {
+  try { CFG = JSON.parse(localStorage.getItem('xhs_cloud_cfg') || 'null'); } catch(e) {}
+  return CFG;
+}
+
+function saveConfig() {
+  const url   = document.getElementById('cfgUrl').value.trim().replace(/\/$/, '');
+  const key   = document.getElementById('cfgKey').value.trim();
+  const repo  = document.getElementById('cfgRepo').value.trim();
+  const token = document.getElementById('cfgToken').value.trim();
+  if (!url || !key) { alert('Supabase URL 和 Key 是必填项'); return; }
+  CFG = { url, key, repo, token };
+  localStorage.setItem('xhs_cloud_cfg', JSON.stringify(CFG));
+  document.getElementById('cfgOverlay').classList.add('hidden');
+  toast('配置已保存', 'success');
+  loadProducts();
+}
+
+function resetConfig() {
+  localStorage.removeItem('xhs_cloud_cfg');
+  location.reload();
+}
+
+// ─── Supabase REST ────────────────────────────────────────────────────────────
+async function supa(method, table, body=null, query='') {
+  if (!CFG) throw new Error('未配置');
+  const url = `${CFG.url}/rest/v1/${table}${query ? '?' + query : ''}`;
+  const resp = await fetch(url, {
+    method,
+    headers: {
+      'apikey': CFG.key,
+      'Authorization': `Bearer ${CFG.key}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=representation',
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const text = await resp.text();
+  try { return JSON.parse(text); } catch(e) { return text; }
+}
+
+// ─── 触发 GitHub Actions ──────────────────────────────────────────────────────
+async function triggerScrape() {
+  if (!CFG?.repo || !CFG?.token) {
+    toast('未配置 GitHub 仓库或 Token，请在设置中填写', 'error');
+    return;
+  }
+  try {
+    const resp = await fetch(`https://api.github.com/repos/${CFG.repo}/actions/workflows/scrape.yml/dispatches`, {
+      method: 'POST',
+      headers: { 'Authorization': `token ${CFG.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ref: 'main' }),
+    });
+    if (resp.status === 204) {
+      toast('采集任务已触发，约1-2分钟后刷新查看数据', 'success');
+      setStatus('⏳ 采集中...');
+      setTimeout(() => { loadProducts(); setStatus('云端监控'); }, 90000);
+    } else {
+      const err = await resp.json();
+      toast('触发失败: ' + (err.message || resp.status), 'error');
+    }
+  } catch(e) {
+    toast('触发失败: ' + e.message, 'error');
+  }
+}
+
+// ─── 主数据加载 ───────────────────────────────────────────────────────────────
+let products = [], soldChart = null, priceChart = null, currentSort = 'added_time';
+
+async function loadProducts() {
+  if (!CFG) return;
+  try {
+    const data = await supa('GET', 'products', null, 'order=created_at.desc');
+    if (!Array.isArray(data)) { toast('读取失败，请检查配置', 'error'); return; }
+
+    // 批量获取7天历史（用于计算增量）
+    const now = new Date();
+    const d30ago = new Date(now - 30*864e5).toISOString();
+    for (const p of data) {
+      const hist = await supa('GET', 'price_history', null,
+        `product_id=eq.${encodeURIComponent(p.product_id)}&recorded_at=gte.${d30ago}&order=recorded_at.asc`);
+      p._history = Array.isArray(hist) ? hist : [];
+      computeDeltas(p);
+    }
+
+    products = data;
+    renderStats();
+    renderCards();
+    document.getElementById('sortBar').style.display = products.length ? 'flex' : 'none';
+  } catch(e) {
+    toast('加载失败: ' + e.message, 'error');
+  }
+}
+
+function computeDeltas(p) {
+  const hist = p._history || [];
+  const now = new Date();
+  const curSold = p.sold || 0;
+  const dateStr = d => new Date(d).toISOString().slice(0,10);
+  const yesterday = dateStr(new Date(now - 864e5));
+  const d7 = dateStr(new Date(now - 7*864e5));
+
+  let yestSold = null, d7Sold = null;
+  for (const h of hist) {
+    const hd = dateStr(h.recorded_at);
+    if (hd === yesterday && yestSold === null) yestSold = h.sold;
+    if (hd <= d7 && d7Sold === null) d7Sold = h.sold;
+  }
+  p.sold_yesterday = yestSold !== null ? curSold - yestSold : null;
+  p.sold_7d        = d7Sold   !== null ? curSold - d7Sold   : null;
+}
+
+function renderStats() {
+  document.getElementById('statCount').textContent = products.length;
+  document.getElementById('statTotalSold').textContent = products.reduce((s,p)=>s+(p.sold||0),0).toLocaleString();
+  const d7 = products.reduce((s,p)=>s+(p.sold_7d||0),0);
+  document.getElementById('statDelta7d').textContent = d7 ? '+' + d7.toLocaleString() : '—';
+  const d1 = products.reduce((s,p)=>s+(p.sold_yesterday||0),0);
+  document.getElementById('statDelta1d').textContent = d1 ? '+' + d1.toLocaleString() : '—';
+}
+
+function sortedProducts() {
+  const arr = [...products];
+  if (currentSort === 'sold_7d') return arr.sort((a,b)=>(b.sold_7d||0)-(a.sold_7d||0));
+  if (currentSort === 'sold_yesterday') return arr.sort((a,b)=>(b.sold_yesterday||0)-(a.sold_yesterday||0));
+  return arr.sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0));
+}
+
+function setSort(key) {
+  currentSort = key;
+  document.querySelectorAll('.sort-btn').forEach(b => b.classList.toggle('active', b.dataset && b.getAttribute('onclick')?.includes(key)));
+  document.querySelectorAll('.sort-btn').forEach(b => {
+    const oc = b.getAttribute('onclick') || '';
+    b.classList.toggle('active', oc.includes(`'${key}'`));
+  });
+  renderCards();
+}
+
+function fmtTime(ts) {
+  if (!ts) return '—';
+  const d = new Date(ts);
+  const now = new Date();
+  const diff = Math.floor((now - d) / 60000);
+  if (diff < 1) return '刚刚';
+  if (diff < 60) return diff + '分钟前';
+  if (diff < 1440) return Math.floor(diff/60) + '小时前';
+  return Math.floor(diff/1440) + '天前';
+}
+
+function fmtDelta(v) {
+  if (v === null || v === undefined) return '<span class="mv muted">—</span>';
+  if (v > 0) return `<span class="mv red">+${v.toLocaleString()}</span>`;
+  return `<span class="mv muted">${v}</span>`;
+}
+
+function renderCards() {
+  const area = document.getElementById('productArea');
+  const list = sortedProducts();
+  if (!list.length) {
+    area.innerHTML = '<div class="empty-state"><div class="icon">📦</div><p>还没有监控商品<br>粘贴小红书链接开始添加</p></div>';
+    return;
+  }
+  area.innerHTML = list.map(p => {
+    const isPending = p.name?.startsWith('⏳');
+    const imgHtml = p.image_url
+      ? `<img class="prod-thumb" src="${escHtml(p.image_url)}" onerror="this.style.display='none'" />`
+      : `<div class="prod-thumb-ph">🛍</div>`;
+    return `
+    <div class="prod-card" onclick="showDetail('${p.product_id}')">
+      <div class="prod-top">
+        ${imgHtml}
+        <div class="prod-info">
+          <div class="prod-name">${escHtml(p.name || '采集中...')}${isPending ? '' : ''}</div>
+          <div>
+            <span class="prod-price">¥${p.price||0}</span>
+            ${p.original_price && p.original_price > p.price ? `<span class="prod-price-orig">¥${p.original_price}</span>` : ''}
+            ${isPending ? '<span class="pending-badge" style="margin-left:6px">采集中...</span>' : ''}
+          </div>
+          <div class="prod-shop">${escHtml(p.shop_name||'')}</div>
+        </div>
+      </div>
+      <div class="prod-metrics">
+        <div class="metric"><div class="ml">累计销量</div><div class="mv red">${(p.sold||0).toLocaleString()}</div></div>
+        <div class="metric"><div class="ml">昨日</div>${fmtDelta(p.sold_yesterday)}</div>
+        <div class="metric"><div class="ml">7天</div>${fmtDelta(p.sold_7d)}</div>
+        <div class="metric"><div class="ml">上次采集</div><div class="mv muted" style="font-size:11px">${fmtTime(p.last_checked)}</div></div>
+      </div>
+      <div class="prod-footer">
+        <span class="prod-footer-left">${fmtTime(p.last_checked)}</span>
+        <div class="prod-footer-right" onclick="event.stopPropagation()">
+          <button class="act-btn" onclick="refreshProduct('${p.product_id}','${escHtml(p.url)}')">🔄</button>
+          <button class="act-btn danger" onclick="deleteProduct('${p.product_id}')">🗑</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ─── 添加商品 ─────────────────────────────────────────────────────────────────
+async function addProduct() {
+  const text = document.getElementById('productUrl').value.trim();
+  if (!text) return;
+  const urls = extractUrls(text);
+  if (!urls.length) { toast('未识别到有效链接', 'error'); return; }
+
+  const btn = document.getElementById('addBtn');
+  btn.disabled = true; btn.textContent = '添加中...';
+
+  try {
+    for (const url of urls) {
+      await supa('POST', 'scrape_queue', { url, status: 'pending' });
+      // 占位显示
+      products.unshift({
+        product_id: 'pending_' + Date.now(),
+        name: '⏳ 正在采集...',
+        url, price: 0, sold: 0, shop_name: '',
+        created_at: new Date().toISOString(),
+      });
+    }
+    renderCards();
+    document.getElementById('productUrl').value = '';
+    toast(`已加入队列 ${urls.length} 条，正在触发采集...`, 'success');
+
+    // 自动触发 Actions
+    await triggerScrape();
+
+    // 60秒后刷新一次
+    setTimeout(loadProducts, 70000);
+  } catch(e) {
+    toast('添加失败: ' + e.message, 'error');
+  }
+  btn.disabled = false; btn.textContent = '添加监控';
+}
+
+async function refreshProduct(pid, url) {
+  await supa('POST', 'scrape_queue', { url, status: 'pending' });
+  await triggerScrape();
+  toast('已触发重新采集', 'info');
+}
+
+async function deleteProduct(pid) {
+  if (!confirm('确认删除该商品？历史数据也会删除')) return;
+  await supa('DELETE', `products?product_id=eq.${encodeURIComponent(pid)}`);
+  products = products.filter(p => p.product_id !== pid);
+  renderStats(); renderCards();
+  toast('已删除', 'success');
+}
+
+function extractUrls(text) {
+  const re = /https?:\/\/(?:xhslink\.com|[\w.-]*xiaohongshu\.com)\/[^\s<>"）】」…，。；：]*/g;
+  return [...new Set([...text.matchAll(re)].map(m => m[0].replace(/[.,;:…。，；：)"]+$/, '')))];
+}
+
+// ─── 详情弹窗 ─────────────────────────────────────────────────────────────────
+let currentProduct = null;
+
+async function showDetail(pid) {
+  currentProduct = products.find(p => p.product_id === pid);
+  if (!currentProduct || currentProduct.name?.startsWith('⏳')) return;
+
+  document.getElementById('modalTitle').textContent = currentProduct.name;
+  document.getElementById('detailModal').classList.add('active');
+
+  // 指标
+  const p = currentProduct;
+  document.getElementById('detailMetrics').innerHTML = [
+    ['当前售价', `¥${p.price||0}`, 'red'],
+    ['累计销量', (p.sold||0).toLocaleString(), 'red'],
+    ['昨日增量', p.sold_yesterday !== null ? '+' + (p.sold_yesterday||0) : '—', ''],
+    ['7天增量',  p.sold_7d !== null ? '+' + (p.sold_7d||0) : '—', ''],
+    ['店铺评分', p.shop_score || '—', ''],
+    ['粉丝数',   p.shop_fans  || '—', ''],
+  ].map(([l,v,c]) => `<div class="metric-card"><div class="label">${l}</div><div class="val ${c}">${v}</div></div>`).join('');
+
+  // 默认激活趋势tab
+  switchTab('trend');
+
+  // 商品信息
+  document.getElementById('infoGrid').innerHTML = [
+    ['商品名称', p.name],
+    ['当前价格', `¥${p.price}`],
+    ['原始价格', `¥${p.original_price||p.price}`],
+    ['累计销量', (p.sold||0).toLocaleString()],
+    ['店铺名称', p.shop_name || '—'],
+    ['店铺评分', p.shop_score || '—'],
+    ['粉丝数量', p.shop_fans || '—'],
+    ['上次采集', p.last_checked ? new Date(p.last_checked).toLocaleString('zh-CN') : '—'],
+  ].map(([l,v]) => `<div class="info-item"><div class="label">${l}</div><div class="val">${escHtml(String(v))}</div></div>`).join('');
+
+  const linkEl = document.getElementById('productLinkEl');
+  linkEl.href = p.url || '#';
+
+  // 图表
+  renderCharts(p._history || []);
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.detail-tab').forEach((t,i) => t.classList.toggle('active', (i===0 && name==='trend') || (i===1 && name==='info')));
+  document.getElementById('panel-trend').className = 'detail-panel' + (name==='trend' ? ' active' : '');
+  document.getElementById('panel-info').className  = 'detail-panel' + (name==='info'  ? ' active' : '');
+}
+
+function renderCharts(hist) {
+  const labels = hist.map(h => new Date(h.recorded_at).toLocaleDateString('zh-CN',{month:'numeric',day:'numeric'}));
+  const soldData  = hist.map(h => h.sold || 0);
+  const priceData = hist.map(h => parseFloat(h.price) || 0);
+
+  if (soldChart)  { soldChart.destroy();  soldChart  = null; }
+  if (priceChart) { priceChart.destroy(); priceChart = null; }
+
+  const baseOpts = {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: { x: { ticks: { maxTicksLimit: 6, font: { size: 11 } } }, y: { ticks: { font: { size: 11 } } } },
+  };
+
+  soldChart = new Chart(document.getElementById('soldChart'), {
+    type: 'line', data: {
+      labels,
+      datasets: [{ data: soldData, borderColor: '#ff2442', backgroundColor: 'rgba(255,36,66,.08)', fill: true, tension: .3, pointRadius: 3 }],
+    },
+    options: { ...baseOpts, plugins: { ...baseOpts.plugins, title: { display: true, text: '累计销量', font: { size: 12 } } } },
+  });
+
+  priceChart = new Chart(document.getElementById('priceChart'), {
+    type: 'line', data: {
+      labels,
+      datasets: [{ data: priceData, borderColor: '#1890ff', backgroundColor: 'rgba(24,144,255,.08)', fill: true, tension: .3, pointRadius: 3 }],
+    },
+    options: { ...baseOpts, plugins: { ...baseOpts.plugins, title: { display: true, text: '价格走势', font: { size: 12 } } } },
+  });
+}
+
+function closeModal() { document.getElementById('detailModal').classList.remove('active'); }
+
+// ─── 设置弹窗 ─────────────────────────────────────────────────────────────────
+async function showSettings() {
+  // 显示当前配置
+  const cfg = CFG || {};
+  document.getElementById('cfgDisplay').innerHTML = [
+    ['Supabase URL', cfg.url ? cfg.url.slice(0,40)+'…' : '未配置'],
+    ['Supabase Key', cfg.key ? cfg.key.slice(0,16)+'…' : '未配置'],
+    ['GitHub 仓库',  cfg.repo || '未配置'],
+    ['GitHub Token', cfg.token ? '已配置' : '未配置'],
+  ].map(([k,v]) => `<div class="settings-row"><span class="key">${k}</span><span class="val">${v}</span></div>`).join('');
+
+  // 队列状态
+  try {
+    const q = await supa('GET', 'scrape_queue', null, 'order=created_at.desc&limit=5');
+    if (Array.isArray(q) && q.length) {
+      document.getElementById('queueStatus').innerHTML = q.map(item =>
+        `<div style="padding:6px 0;border-bottom:1px solid #f5f5f5;font-size:12px;display:flex;gap:8px;align-items:center">
+          <span style="color:${item.status==='done'?'var(--success)':item.status==='error'?'#ff4d4f':'var(--blue)'};font-weight:600">${item.status}</span>
+          <span style="color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${item.url}</span>
+        </div>`).join('');
+    } else {
+      document.getElementById('queueStatus').textContent = '队列为空';
+    }
+  } catch(e) { document.getElementById('queueStatus').textContent = '读取失败'; }
+
+  document.getElementById('settingsModal').classList.add('active');
+}
+
+// ─── 工具函数 ─────────────────────────────────────────────────────────────────
+function toast(msg, type='info') {
+  const box = document.getElementById('toastBox');
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  box.appendChild(el);
+  setTimeout(() => { el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(()=>el.remove(),300); }, 2500);
+}
+
+function setStatus(text) { document.getElementById('statusText').textContent = text; }
+function escHtml(s) { const d = document.createElement('div'); d.textContent = String(s); return d.innerHTML; }
+
+// ─── 初始化 ───────────────────────────────────────────────────────────────────
+(function init() {
+  loadConfig();
+  if (!CFG || !CFG.url || !CFG.key) {
+    document.getElementById('cfgOverlay').classList.remove('hidden');
+  } else {
+    document.getElementById('cfgOverlay').classList.add('hidden');
+    loadProducts();
+    // 每5分钟自动刷新
+    setInterval(loadProducts, 5 * 60 * 1000);
+  }
+})();
+</script>
+</body>
+</html>

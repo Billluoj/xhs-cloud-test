@@ -1,23 +1,19 @@
-name: XHS 商品采集测试
+name: XHS 商品采集
 
 on:
-  # 手动触发（用于测试）
   workflow_dispatch:
-  # 定时：每天早8点北京时间（UTC 0点）
   schedule:
-    - cron: '0 0 * * *'
+    - cron: '0 0,6,12,18 * * *'   # 每天北京时间 8/14/20/02 点各跑一次
 
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
 
     steps:
-      - name: 拉取代码
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: 安装 Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
@@ -28,11 +24,6 @@ jobs:
 
       - name: 运行采集
         env:
-          # 在 GitHub repo Settings -> Secrets 里配置以下变量：
-          # XHS_URLS: 商品链接，多个用英文逗号分隔
-          # SUPABASE_URL: https://xxxx.supabase.co
-          # SUPABASE_KEY: your-anon-key
-          XHS_URLS: ${{ secrets.XHS_URLS }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: python scraper.py
